@@ -5,10 +5,30 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-def notification(title, link):
-    content = "{}\n{}".format(title, link)
-    line_bot_api.multicast(notify_list, TextSendMessage(text=content))
-    return True
+from flask import Flask, request, abort
+
+from linebot import (
+    LineBotApi, WebhookHandler
+)
+from linebot.exceptions import (
+    InvalidSignatureError
+)
+from linebot.models import (
+    MessageEvent, TextMessage, TextSendMessage,
+)
+
+app = Flask(__name__)
+
+line_bot_api = LineBotApi('YOUR Channel access token')
+handler = WebhookHandler('Channel secret ')
+
+def nba_links(math_list):
+    content = ""
+    for m in math_list:
+        title = m['title']
+        link = m['link']
+        content += "{}\n{}\n".format(title, link)
+    return content
 
 def get_web_page(link):
     time.sleep(0.5)
@@ -37,43 +57,58 @@ def get_articles(dom, date):
                 articles.append({'title':title, 'link':link})
     return articles, prev_url
 
-page = get_web_page('https://www.ptt.cc/bbs/NBA/index.html')
+@app.route("/", methods=['GET'])
+def hello():
+    return "Hello World!"
 
-if page:
-    articles = []
-    date = time.strftime("%m/%d").lstrip('0')
-    current_articles, prev_url = get_articles(page, date)
-    while current_articles:
-        articles += current_articles
-        page = get_web_page(prev_url)
-        current_articles, prev_url = get_articles(page, date)
+@app.route("/", methods=['POST'])
+def callback():
+    # get X-Line-Signature header value
+    signature = request.headers['X-Line-Signature']
 
-    re_gs_title = re.compile(r'^\[Live\]', re.I)
+    # get request body as text
+    body = request.get_data(as_text=True)
+    print("Request body: " + body, "Signature: " + signature)
+    # handle webhook body
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+       abort(400)
 
-    match = []
-    for article in articles:
-        title = article['title']
-        if re_gs_title.match(title) != None:
-            link = article['link']
-            match.append({'title':title, 'link':link})
-print(match)
-# if len(match) > 0:
-#     with open('data/history/gamesale.json', 'r+') as file:
-#         history = json.load(file)
+    return 'OK'
 
-#         now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-#         new_flag = False
-#         for article in match:
-#             if article['id'] in history:
-#                 continue
-#             new_flag = True
-#             history.append(article['id'])
-#             notification(article['title'], article['link'])
-#             print("{}: New Article: {} {}".format(now, article['title'], article['link']))
 
-#         if new_flag == True:
-#             file.seek(0)
-#             file.truncate()
-#             file.write(json.dumps(history))
-#         else:
-#             print("{}: Nothing".format(now))
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+    msg = event.message.text
+    print(msg)
+    # msg = msg.encode('utf-8')
+    if msg == 'NBA':
+        page = get_web_page('https://www.ptt.cc/bbs/NBA/index.html')
+
+        if page:
+            articles = []
+            date = time.strftime("%m/%d").lstrip('0')
+            current_articles, prev_url = get_articles(page, date)
+            while current_articles:
+                articles += current_articles
+                page = get_web_page(prev_url)
+                current_articles, prev_url = get_articles(page, date)
+
+            re_gs_title = re.compile(r'^\[Live\]', re.I)
+
+            match = []
+            for article in articles:
+                title = article['title']
+                if re_gs_title.match(title) != None:
+                    link = article['link']
+                    match.append({'title':title, 'link':link})
+        # print(match)
+        if len(match) > 0:
+            c = nba_links(match)
+            line_bot_api.reply_message(event.reply_token,TextSendMessage(text=c))
+    else:
+        line_bot_api.reply_message(event.reply_token,TextSendMessage(text='請輸入"NBA"查看今日LIVE直播連結'))
+
+if __name__ == "__main__":
+    app.run(debug=True,port=5700)
