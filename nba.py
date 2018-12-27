@@ -19,8 +19,8 @@ from linebot.models import (
 
 app = Flask(__name__)
 
-line_bot_api = LineBotApi('YOUR Channel access token')
-handler = WebhookHandler('Channel secret ')
+line_bot_api = LineBotApi('WjlmNUqRQboB20VBmFDjIcQIX23i1m9USBL7atoIH52jWaJNiAMjTME4mLrhWY6cIO8YiKcTb4Lg7y86UWgyzmq44a3ccJbomwIBfLzE9KyZ6SgcNLf6cIQaLBbjaXj0HYdn+/xS5PPsNg8z0rWYcAdB04t89/1O/w1cDnyilFU=')
+handler = WebhookHandler('62a8d88a917c14ac76ad6d510da67a4a')
 
 def nba_links(math_list):
     content = ""
